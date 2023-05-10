@@ -1,1 +1,0 @@
-from django_query_tools.client import F
