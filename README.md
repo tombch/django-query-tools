@@ -2,9 +2,7 @@
 Tools for building queries in Django.
 ## Setup
 ```
-$ git clone https://github.com/tombch/django-query-tools.git
-$ cd django-query-tools/
-$ pip install .
+$ pip install django-query-tools
 ```
 To use the `server` module, Django must also be installed:
 ```
