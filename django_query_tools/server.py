@@ -55,6 +55,9 @@ def make_atoms(data: Dict[str, Any], to_str: bool = True) -> List[QueryAtom]:
             raise QueryException(
                 f"Expected list when parsing query but received type: {type(value)}"
             )
+        if len(value) < 1:
+            raise QueryException("List within query must have at least one item")
+
         atoms = [make_atoms(k_v) for k_v in value]
         return functools.reduce(operator.add, atoms)
 
@@ -90,6 +93,10 @@ def make_query(data: Dict[str, Any]) -> Q:
             raise QueryException(
                 f"Expected list when parsing query but received type: {type(value)}"
             )
+
+        if len(value) < 1:
+            raise QueryException("List within query must have at least one item")
+
         q_objects = [make_query(k_v) for k_v in value]
         return functools.reduce(operators[key], q_objects)
 
