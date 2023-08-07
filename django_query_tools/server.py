@@ -51,6 +51,10 @@ def make_atoms(data: Dict[str, Any], to_str: bool = True) -> List[QueryAtom]:
     operators = {"&", "|", "^"}
 
     if key in operators:
+        if not isinstance(value, list):
+            raise QueryException(
+                f"Expected list when parsing query but received type: {type(value)}"
+            )
         atoms = [make_atoms(k_v) for k_v in value]
         return functools.reduce(operator.add, atoms)
 
@@ -82,6 +86,10 @@ def make_query(data: Dict[str, Any]) -> Q:
     operators = {"&": operator.and_, "|": operator.or_, "^": operator.xor}
 
     if key in operators:
+        if not isinstance(value, list):
+            raise QueryException(
+                f"Expected list when parsing query but received type: {type(value)}"
+            )
         q_objects = [make_query(k_v) for k_v in value]
         return functools.reduce(operators[key], q_objects)
 
