@@ -1,7 +1,16 @@
-from django.core.exceptions import FieldDoesNotExist, ValidationError
-from django.db.models import Q
 import operator
 import functools
+from typing import Dict, List, Any
+from django.core.exceptions import FieldDoesNotExist, ValidationError
+from django.db.models import Q
+
+
+class QueryException(Exception):
+    """
+    Class for all query-parsing exceptions.
+    """
+
+    pass
 
 
 class QueryAtom:
@@ -14,24 +23,39 @@ class QueryAtom:
         self.value = value
 
 
-def make_atoms(data, to_str=True):
+def validate_data(func):
+    def wrapped(data, *args, **kwargs):
+        if not isinstance(data, dict):
+            raise QueryException(
+                f"Expected dictionary when parsing query but received type: {type(data)}"
+            )
+
+        if len(data.items()) != 1:
+            raise QueryException(
+                "Dictionary within query is not a single key-value pair"
+            )
+
+        return func(data, *args, **kwargs)
+
+    return wrapped
+
+
+@validate_data
+def make_atoms(data: Dict[str, Any], to_str: bool = True) -> List[QueryAtom]:
     """
     Traverses the provided `data` and replaces request values with `QueryAtom` objects.
     Returns a list of these `QueryAtom` objects.
     """
-    if len(data.items()) != 1:
-        raise Exception
 
-    key, value = next(iter(data.items()))  #  type: ignore
+    key, value = next(iter(data.items()))
+    operators = {"&", "|", "^"}
 
-    if key in {"&", "|", "^"}:
+    if key in operators:
         atoms = [make_atoms(k_v) for k_v in value]
         return functools.reduce(operator.add, atoms)
 
     elif key == "~":
-        if len(value) != 1:
-            raise Exception
-        return make_atoms(value[0])
+        return make_atoms(value)
 
     else:
         # Initialise QueryAtom object
@@ -48,12 +72,41 @@ def make_atoms(data, to_str=True):
         return [atom]
 
 
+@validate_data
+def make_query(data: Dict[str, Any]) -> Q:
+    """
+    Traverses the provided `data` and forms the corresponding Q object.
+    """
+
+    key, value = next(iter(data.items()))
+    operators = {"&": operator.and_, "|": operator.or_, "^": operator.xor}
+
+    if key in operators:
+        q_objects = [make_query(k_v) for k_v in value]
+        return functools.reduce(operators[key], q_objects)
+
+    elif key == "~":
+        return ~make_query(value)
+
+    else:
+        # Base case: a QueryAtom to filter on
+        # 'value' here is a QueryAtom object
+        # That by this point, should have been cleaned and corrected to work in a query
+        q = Q(**{value.key: value.value})
+        return q
+
+
 def validate_atoms(
-    atoms, filterset, filterset_args=None, filterset_kwargs=None, filterset_model=None
-):
+    atoms: List[QueryAtom],
+    filterset,
+    filterset_args=None,
+    filterset_kwargs=None,
+    filterset_model=None,
+) -> None:
     """
     Use the provided `filterset` to validate and clean the provided list of `atoms`.
     """
+
     # Construct a list of dictionaries from the atoms
     # Each of these dictionaries will be passed to a filterset
     # The filterset is being used to clean and validate the input filters
@@ -108,41 +161,3 @@ def validate_atoms(
         # Add the cleaned values to the QueryAtom objects
         for k, atom in layer.items():
             atom.value = fs.form.cleaned_data[k]
-
-
-def make_query(data):
-    """
-    Traverses the provided `data` and forms the corresponding Q object.
-    """
-    if len(data.items()) != 1:
-        raise Exception
-
-    key, value = next(iter(data.items()))  #  type: ignore
-
-    # AND of multiple keyvalues
-    if key == "&":
-        q_objects = [make_query(k_v) for k_v in value]
-        return functools.reduce(operator.and_, q_objects)
-
-    # OR of multiple keyvalues
-    elif key == "|":
-        q_objects = [make_query(k_v) for k_v in value]
-        return functools.reduce(operator.or_, q_objects)
-
-    # XOR of multiple keyvalues
-    elif key == "^":
-        q_objects = [make_query(k_v) for k_v in value]
-        return functools.reduce(operator.xor, q_objects)
-
-    # NOT of a single keyvalue
-    elif key == "~":
-        if len(value) != 1:
-            raise Exception
-        return ~make_query(value[0])
-
-    # Base case: a QueryAtom to filter on
-    else:
-        # 'value' here is a QueryAtom object
-        # That by this point, should have been cleaned and corrected to work in a query
-        q = Q(**{value.key: value.value})
-        return q
