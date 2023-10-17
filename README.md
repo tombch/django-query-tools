@@ -1,8 +1,9 @@
 # `django-query-tools`
-Tools for building queries in Django.
 
 ![PyPI](https://img.shields.io/pypi/v/django-query-tools?label=pypi%20package)
 ![PyPI - Downloads](https://img.shields.io/pypi/dm/django-query-tools)
+
+Tools for building queries in Django.
 
 ## Setup
 ```
